@@ -28,6 +28,7 @@ class Community_Cards:
         else:
             print("Turn card has already been revealed.")
 
+
     def reveal_river(self, river_card):
         if self.rivercard is None:
             self.rivercard = river_card
@@ -35,10 +36,12 @@ class Community_Cards:
         else:
             print("River card has already been revealed.")
 
+
 class Player_Cards:
-    def __init__(self, player_list, deck):
+    def __init__(self, player_list, deck, community_cards):
         self.current_players = Current_Players(player_list)
         self.deck = deck
+        self.community_cards = community_cards 
         self.hands = {player.name: [] for player in self.current_players.players}
 
     def deal_cards(self):

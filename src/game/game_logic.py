@@ -8,11 +8,8 @@ from pokereval.hand_evaluator import HandEvaluator
 def hand_ranking(hole_cards, community_cards):
     cards = hole_cards + community_cards
 
-    values = sorted([int(card.rank) for card in cards], reverse=True)
+    values = [card.rank for card in cards]
     suits = [card.suit for card in cards]
-
-    print(values)
-    print(suits)
 
     # Check for flush
     flush = len(set(suits)) == 1
@@ -80,5 +77,4 @@ def hand_evaluation(hole_cards, community_cards):
 
     score = HandEvaluator.evaluate_hand(hole_cards, community_cards)
     ranking = hand_ranking(hole_cards, community_cards)
-    print(ranking[1])
-    print(score)
+    return score, ranking[1]
