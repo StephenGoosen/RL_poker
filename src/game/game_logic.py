@@ -1,60 +1,84 @@
+# game_logic.py
+
 from itertools import combinations
 
-def hand_ranking(cards):
-    values = sorted([int(card[0]) if card[0] != 'A' else 1 for card in cards], key=lambda x: x)
-    suits = [card[1] for card in cards]
+from pokereval.card import Card
+from pokereval.hand_evaluator import HandEvaluator
 
-    straight = (max(values) - min(values) == 4) and (len(set(values)) == 5)
+def hand_ranking(hole_cards, community_cards):
+    cards = hole_cards + community_cards
+
+    values = sorted([int(card.rank) for card in cards], reverse=True)
+    suits = [card.suit for card in cards]
+
+    print(values)
+    print(suits)
+
+    # Check for flush
     flush = len(set(suits)) == 1
+
+    # Check for straight
+    straight = (
+        (values[0] - values[4] == 4 and len(set(values)) == 5) or
+        (values[1] == 5 and values[0] == 14 and len(set(values[1:])) == 4)
+    )
+
+    # Check for royal flush
+    if straight and flush and values[0] == 14:
+        return 9, "Royal Flush"
 
     # Check for straight flush
     if straight and flush:
-        return 8, values
+        return 8, "Straight Flush"
 
     # Check for four of a kind
-    if len(set(values)) == 2 and values.count(values[0]) in [1, 4]:
-        return 7, values
+    if values.count(values[0]) == 4 or values.count(values[1]) == 4:
+        return 7, "Four of a Kind"
 
     # Check for full house
-    if len(set(values)) == 2 and values.count(values[0]) in [2, 3]:
-        return 6, values
+    if values.count(values[0]) == 3 and values.count(values[4]) == 2:
+        return 6, "Full House"
+    elif values.count(values[0]) == 2 and values.count(values[4]) == 3:
+        return 6, "Full House"
 
     # Check for flush
     if flush:
-        return 5, values
+        return 5, "Flush"
 
     # Check for straight
     if straight:
-        return 4, values
+        return 4, "Straight"
 
     # Check for three of a kind
-    if len(set(values)) == 3 and 3 in [values.count(x) for x in set(values)]:
-        return 3, values
+    if values.count(values[0]) == 3 or values.count(values[2]) == 3 or values.count(values[4]) == 3:
+        return 3, "Three of a Kind"
 
-    # Check for two pairs
-    if len(set(values)) == 3 and 2 in [values.count(x) for x in set(values)]:
-        return 2, values
+    # Check for two pair
+    if len(set(values)) == 3 and (values.count(values[0]) == 2 or values.count(values[2]) == 2 or values.count(values[4]) == 2):
+        return 2, "Two Pair"
 
     # Check for one pair
-    if len(set(values)) == 4 and 2 in [values.count(x) for x in set(values)]:
-        return 1, values
+    if len(set(values)) == 4:
+        return 1, "One Pair"
 
     # High card
-    return 0, values
+    return 0, "High Card"
 
-def evaluate_hand(hole_cards, community_cards):
-    all_cards = hole_cards + community_cards
-    all_combinations = list(combinations(all_cards, 5))
 
-    best_rank = (0, [])
+def compare_scores(score_dict):
+    # Hand dict has the player name and the players score
 
-    for combination in all_combinations:
-        values = sorted([str(card.value) for card in combination], key=lambda x: (x if x != 'A' else '1'))
-        suits = [card.suit for card in combination]
+    # Loop through each
+    player_scores = {}
+    for name, score in score_dict:
+        player_scores[name] = score
+        #sort by score and return highest score/scores
+        sorted_scores = sorted(player_scores.items(), key=lambda x: x[1], reverse=True)
+        return sorted_scores[0][0]
 
-        rank = hand_ranking(list(zip(values, suits)))
-        if rank > best_rank:
-            best_rank = rank
-            best_combination = combination
+def hand_evaluation(hole_cards, community_cards):
 
-    return best_rank, best_combination 
+    score = HandEvaluator.evaluate_hand(hole_cards, community_cards)
+    ranking = hand_ranking(hole_cards, community_cards)
+    print(ranking[1])
+    print(score)

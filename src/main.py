@@ -1,6 +1,7 @@
-from gui.gui import TexasHoldemGUI
+from gui.gui import Game
+
 
 
 if __name__ == "__main__":
-    gui = TexasHoldemGUI()
+    gui = Game()
     gui.run()

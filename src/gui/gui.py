@@ -3,13 +3,19 @@ import pygame_gui
 
 import os
 import sys
+import re
 
-from game.game_logic import evaluate_hand
-import game.cards as Cards
+from game.game_logic import hand_evaluation, compare_scores
+from pokereval.card import Card
 from game.player import Player
-from game.table import Table
+from game.cards import Deck
+import game.table as Tb
 
-class TexasHoldemGUI:
+rank_mapping = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
+suit_mapping = {'s': 'spades', 'h': 'hearts', 'd': 'diamonds', 'c': 'clubs'}
+
+
+class Game:
     def __init__(self):
         pygame.init()
         self.width, self.height = 800, 600
@@ -33,14 +39,15 @@ class TexasHoldemGUI:
         self.is_running = True
 
         # Initialize Texas Hold'em game objects
-        self.table = Table()
-        self.deck = Cards.Deck()
+        self.deck = Deck()
         self.players = [Player(f"Player {i+1}") for i in range(2)]
 
     def load_card_images(self):
+        img_suits = ['spades', 'hearts', 'diamonds', 'clubs']
+        img_values = [ 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
         card_images = {}
-        for value in Cards.card_values:
-            for suit in Cards.card_suits:
+        for value in img_values:
+            for suit in img_suits:
                 file_path = os.path.join("images", f"{value}_of_{suit.lower()}.png")
                 print(f"Loading image: {file_path}")
                 try:
@@ -50,6 +57,7 @@ class TexasHoldemGUI:
                 else:
                     print("Image loaded successfully")
         return card_images
+
 
     def run(self):
         while self.is_running:
@@ -89,10 +97,16 @@ class TexasHoldemGUI:
             pygame.draw.rect(self.screen, (255, 255, 255), player_container_rect, 2)
 
             for i, card in enumerate(player.hand):
-                if isinstance(card.value, int):
-                    key = os.path.join("images", f"{card.value}_of_{card.suit.lower()}.png")
-                else:
-                    key = os.path.join("images", f"{card.value.lower()[0]}_of_{card.suit.lower()}.png")
+                rank_match = re.findall(r'\((.*?)\)', str(card))[0][0]
+                suit_match = re.findall(r'\((.*?)\)', str(card))[0][1]
+
+                # Map rank and suit to desired values
+                rank = rank_mapping.get(rank_match, rank_match)
+                suit = suit_mapping.get(suit_match, suit_match)
+
+                file_name = f"{rank}_of_{suit}.png"
+                key = os.path.join("images", file_name)
+
                 try:
                     card_image = pygame.image.load(key)
                     card_image = pygame.transform.scale(card_image, (int(player_container_width / 5), int(player_container_height / 2)))
@@ -111,11 +125,15 @@ class TexasHoldemGUI:
 
         community_container_width = 150
         community_container_height = 100
-
+        self.table = Tb.Community_Cards()
         flop_x = 50
 
         for i, card in enumerate(self.table.flop):
-            key = os.path.join("images", f"{card.value}_of_{card.suit.lower()}.png")
+            rank_match = re.findall(r'\((.*?)\)', str(card[i]))[0][0]
+            suit_match = re.findall(r'\((.*?)\)', str(card[i]))[0][1]
+            file_name = f"{rank_match}_of_{suit_match}.png"
+
+            key = os.path.join("images", file_name)
             try:
                 card_image = pygame.image.load(key)
                 card_image = pygame.transform.scale(card_image, (int(community_container_width / 5), int(community_container_height / 2)))
@@ -131,54 +149,45 @@ class TexasHoldemGUI:
 
         turn_card = self.table.turncard
         if turn_card is not None:
-            try:
-                if isinstance(turn_card.value, int):
-                    turn_value_str = str(turn_card.value)
-                else:
-                    turn_value_str = turn_card.value.lower()[0]
+            for i, card in enumerate(turn_card):
+                rank_match = re.findall(r'\((.*?)\)', str(card))[0][0]
+                suit_match = re.findall(r'\((.*?)\)', str(card))[0][1]
+                file_name = f"{rank_match}_of_{suit_match}.png"
 
-                turn_card_key = os.path.join("images", f"{turn_value_str}_of_{turn_card.suit.lower()}.png")
-                print(f"Attempting to load image for turn card: {turn_card_key}")
+                key = os.path.join("images", file_name)
+                print(f"Attempting to load image for turn card: {key}")
 
-                turn_card_image = self.card_images.get(turn_card_key) 
-                if turn_card_image is None:
-                    raise KeyError(f"Image file not found for {turn_card_key}")
-
+                turn_card_image = self.card_images.get(key) 
                 turn_card_image = pygame.transform.scale(turn_card_image, (int(community_container_width / 5), int(community_container_height / 2)))
-            except KeyError as e:
-                print(f"Error: {e}")
-            else:
+                if turn_card_image is None:
+                    raise KeyError(f"Image file not found for {key}")
+                
                 x = flop_x + 50
                 y = 400
                 self.screen.blit(turn_card_image, (x, y))
 
         river_card = self.table.rivercard
-        if river_card is not None:
-            try:
-                if isinstance(river_card.value, int):
-                    river_card_str = str(river_card.value)
-                else:
-                    river_card_str = river_card.value.lower()[0]
+        if turn_card is not None:
+            for i, card in enumerate(river_card):
+                rank_match = re.findall(r'\((.*?)\)', str(card))[0][0]
+                suit_match = re.findall(r'\((.*?)\)', str(card))[0][1]
+                file_name = f"{rank_match}_of_{suit_match}.png"
 
-                river_card_key = os.path.join("images", f"{river_card_str}_of_{river_card.suit.lower()}.png")
-                print(f"Attempting to load image for river card: {river_card_key}")
+                key = os.path.join("images", file_name)
+                print(f"Attempting to load image for river card: {key}")
 
-                river_card_image = self.card_images.get(river_card_key)
-                if river_card_image is None:
-                    raise KeyError(f"Image file not found for {river_card_key}")
-
+                river_card_image = self.card_images.get(key)
                 river_card_image = pygame.transform.scale(river_card_image, (int(community_container_width / 5), int(community_container_height / 2)))
-            except KeyError as e:
-                print(f"Error: {e}")
-            else:
+
+                if river_card_image is None:
+                    raise KeyError(f"Image file not found for {key}")
+
                 x = flop_x + 50
                 y = 400
                 self.screen.blit(river_card_image, (x, y))
 
     def play_round(self):
         # Reset the game state for a new round
-        self.table = Table()
-        self.deck = Cards.Deck()
         self.deck.shuffle()
 
         # Deal cards to players
@@ -203,11 +212,9 @@ class TexasHoldemGUI:
         for player in self.players:
             hole_cards = player.hand
             community_cards = self.table.flop + [self.table.turncard] + [self.table.rivercard]
-            hand_strength, best_combination = evaluate_hand(hole_cards, community_cards)
+            print(re.findall(r'\((.*?)\)', str(community_cards[0]))[0][0])
+            print(re.findall(r'\((.*?)\)', str(community_cards[0]))[0][1])
+            print(hole_cards)
+            score = hand_evaluation(hole_cards, community_cards)
 
-            # Convert values and suits to strings for better display
-            best_combination_str = [str(card) for card in best_combination]
-
-            print(f"{player.name}'s hand strength: {hand_strength[0]}")
-            print(f"{player.name}'s best combination: {', '.join(best_combination_str)}")
-            print()
+            print(f"{player.name}'s hand strength: {score}")
