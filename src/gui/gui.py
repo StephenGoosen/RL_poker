@@ -5,10 +5,10 @@ import os
 import sys
 import re
 
-from game.game_logic import hand_evaluation, compare_scores
+from game.game_logic import hand_evaluation, compare_scores, Hand
 from pokereval.card import Card
 from game.player import Player
-from game.cards import Deck
+from game.cards import Deck, change_card_str
 import game.table as Tb
 
 rank_mapping = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
@@ -53,7 +53,7 @@ class Game:
 
     def load_card_images(self):
         img_suits = ['spades', 'hearts', 'diamonds', 'clubs']
-        img_values = [ 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+        img_values = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
         card_images = {}
         for value in img_values:
             for suit in img_suits:
@@ -84,7 +84,6 @@ class Game:
             self.screen.fill(self.background_color)
 
             self.draw_players()
-
             self.community_container()
 
             if self.cards_dealt:
@@ -92,7 +91,7 @@ class Game:
 
             pygame.draw.rect(self.screen, self.button_color, self.button_rect)
 
-            self.manager.update(self.clock.tick(30) / 1000.0)
+            self.manager.update(self.clock.tick(10) / 1000.0)
             self.manager.draw_ui(self.screen)
 
             pygame.display.flip()
@@ -117,11 +116,7 @@ class Game:
 
             # Draw player's cards
             for i, card in enumerate(player.hand):
-                rank_match = re.findall(r'\((.*?)\)', str(card))[0][0]
-                suit_match = re.findall(r'\((.*?)\)', str(card))[0][1]
-
-                rank = rank_mapping.get(rank_match, rank_match)
-                suit = suit_mapping.get(suit_match, suit_match)
+                rank, suit = change_card_str(player.hand[i])
 
                 file_name = f"{rank}_of_{suit}.png"
                 key = os.path.join("images", file_name)
@@ -145,7 +140,7 @@ class Game:
 
             # Draw hand and hand strength
             font = pygame.font.Font(None, 18)
-            score_text = f"Hand Strength: {player.hand_strength:.3f}"
+            score_text = f"Hand Strength: {float(player.hand_strength):.3f}"
             hand_text = f"Hand: {player.hand_description}"
             score_surface = font.render(score_text, True, (255, 255, 255))
             hand_surface = font.render(hand_text, True, (255, 255, 255))
@@ -183,10 +178,7 @@ class Game:
             self.draw_card(self.community_cards.rivercard, river_x, self.community_container_y + 20, self.community_container_width, self.community_container_height)
 
     def draw_card(self, card, x, y, width, height):
-        rank_match = re.findall(r'\((.*?)\)', str(card))[0][0]
-        suit_match = re.findall(r'\((.*?)\)', str(card))[0][1]
-        rank = rank_mapping.get(rank_match, rank_match)
-        suit = suit_mapping.get(suit_match, suit_match)
+        rank, suit = change_card_str(card)
 
         file_name = f"{rank}_of_{suit}.png"
         key = os.path.join("images", file_name)
@@ -205,34 +197,39 @@ class Game:
         self.community_cards = Tb.Community_Cards()
 
     def play_round(self):
-
         self.deck.shuffle()
-
         self.reset_community_cards()
 
         for player in self.players:
             player.hand = [self.deck.deal_card(), self.deck.deal_card()]
 
+        self.deck.deal_card()  # burn card
         self.flop_cards = [self.deck.deal_card() for _ in range(3)]
         self.community_cards.reveal_flop(self.flop_cards)
 
+        self.deck.deal_card()  # burn card
         self.turn_card = self.deck.deal_card()
         self.community_cards.reveal_turn(self.turn_card)
 
+        self.deck.deal_card()  # burn card
         self.river_card = self.deck.deal_card()
         self.community_cards.reveal_river(self.river_card)
 
         community_cards = self.flop_cards + [self.turn_card] + [self.river_card]
 
+        for card in community_cards:
+            rank, suit = change_card_str(card)
+            print(f"{rank} of {suit}")
+
         for player in self.players:
-            hole_cards = player.hand
-            score, hand_str = hand_evaluation(hole_cards, community_cards)
-            print(f"{player.name}'s hand strength: {score:.3f}")
-            print(f"{player.name}'s hand: {hand_str}")
+            hole_cards = player.hand  # Use player.hand directly
 
-            # Set hand information for the player
-            player.set_hand_info(score, hand_str)
+            # Use the hand_evaluation function to evaluate hands
+            hand_evaluation(player, hole_cards, community_cards)
 
-        self.cards_dealt = True 
+
+        self.cards_dealt = True
         self.reset_deck()
         self.cards_drawn = False
+
+        return None

@@ -44,5 +44,5 @@ class Player:
         '''
         Contains hand strength score and description
         '''
-        self.hand_strength = strength
+        self.hand_strength = float(strength)
         self.hand_description = description
