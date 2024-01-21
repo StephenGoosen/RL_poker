@@ -2,6 +2,8 @@
 
 from pokereval.card import Card
 
+import game.config as cg
+
 class Player:
     ''' 
     Representation of a player
@@ -16,6 +18,14 @@ class Player:
         self.hand = []
         self.hand_strength = 0.0
         self.hand_description = ""
+        self.chipcount = cg.chipcount
+        self.in_play = True
+
+    def in_play(self, in_play: bool):
+        if in_play == True:
+            self.in_play = True
+        else:
+            self.in_play = False
 
     def receive_card(self, card: Card):
         ''' 
@@ -44,5 +54,20 @@ class Player:
         '''
         Contains hand strength score and description
         '''
-        self.hand_strength = float(strength)
+        self.hand_strength = strength
         self.hand_description = description
+
+    def chip_count(self):
+        '''
+        Returns the number of chips the player has
+        '''
+        return self.chipcount
+
+    def add_chip(self, chip):
+        self.chipcount += chip
+
+    def remove_chip(self, chip):
+        self.chipcount -= chip
+
+    def __str__ (self):
+        return f"{self.name}"
