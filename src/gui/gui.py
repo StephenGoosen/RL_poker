@@ -1,3 +1,5 @@
+# gui.py
+
 import pygame
 import pygame_gui
 
@@ -18,13 +20,13 @@ class Game:
     def __init__(self):
         pygame.init()
         self.width, self.height = 1280, 720
-        self.screen = pygame.display.set_mode((self.width, self.height), pygame.RESIZABLE)
+        self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption("Texas Hold'em")
 
         background_image = pygame.image.load(os.path.join("images", "background.png"))
         self.resized_image = pygame.transform.scale(background_image, (self.width, self.height))
         self.button_color = pygame.Color('#FFFFFF')
-        self.button_rect = pygame.Rect((self.width/2.17, self.height/20), (100, 50))
+        self.button_rect = pygame.Rect((self.width/2 - 75, self.height/2 - 25), (150, 50))
 
         self.card_images = self.load_card_images()
 
@@ -35,15 +37,13 @@ class Game:
             manager=self.manager
         )
 
+        self.round_states = ['Start Round', 'Deal Flop', 'Deal Turn', 'Deal River', 'End Round']
+        self.current_round_state = 0    
+        
         self.clock = pygame.time.Clock()
         self.is_running = True
-        self.hole_cards_dealt = False
-        self.flop_dealt = False
-        self.river_dealt = False
-        self.turn_dealt = False
-        self.dealing_cards = False
         self.game = GameLogic()
-        print(f"Players: {self.game.players}")
+
 
     def load_card_images(self):
         img_suits = ['spades', 'hearts', 'diamonds', 'clubs']
@@ -52,7 +52,6 @@ class Game:
         for value in img_values:
             for suit in img_suits:
                 file_path = os.path.join("images", f"{value}_of_{suit.lower()}.png")
-                print(f"Loading image: {file_path}")
                 try:
                     card_images[file_path] = pygame.image.load(file_path)
                 except pygame.error as e:
@@ -71,9 +70,7 @@ class Game:
                     self.is_running = False
 
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and self.deal_button.rect.collidepoint(event.pos):
-                    if not self.dealing_cards:
-                        self.play_round()
-                        self.dealing_cards = True 
+                    self.play_round()
 
             self.screen.blit(self.resized_image, (0, 0))
 
@@ -84,25 +81,22 @@ class Game:
                 self.draw_players_cards()
 
             if self.game.flop_dealt:
-                self.draw_community_cards()
+                self.draw_flop_cards()
 
             if self.game.turn_dealt:
-                self.draw_community_cards()
+                self.draw_turn_cards()
 
             if self.game.river_dealt:
-                self.draw_community_cards()
+                self.draw_river_cards()
 
             pygame.draw.rect(self.screen, self.button_color, self.button_rect)
 
-            self.manager.update(self.clock.tick(10) / 1000.0)
+            self.deal_button.set_text(self.round_states[self.current_round_state])
+
+            self.manager.update(self.clock.tick(144) / 1000.0)
             self.manager.draw_ui(self.screen)
 
             pygame.display.flip()
-
-            if self.dealing_cards and not self.cards_dealt:
-                continue
-
-            self.dealing_cards = False
 
         pygame.quit()
         sys.exit()
@@ -119,12 +113,22 @@ class Game:
         for i in range(len(self.game.players)):
             player_container_rect = pygame.Rect(self.player_x[i], self.player_y[i], self.player_container_width, self.player_container_height)
 
-            # Draw player's name
-            font = pygame.font.Font(None, 30)
-            text = font.render(self.game.players[i].name, True, (255, 255, 255))
-            text_rect = text.get_rect(center=(self.player_x[i]+self.player_container_width // 2, self.player_y[i] + 34))
+            # Draw player's name and chipcount
+            font1 = pygame.font.Font(None, 30)
+            font2 = pygame.font.Font(None, 20)
+
+            name_text = font1.render(self.game.players[i].name, True, (255, 255, 255))
+            chip_text = font2.render(f"{self.game.players[i].chipcount}", True, (255, 255, 255))
+            chip_title_text = font2.render("Total Chips", True, (255, 255, 255))
+            
+            name_rect = name_text.get_rect(center=(self.player_x[i]+self.player_container_width // 2, self.player_y[i] + 34))
+            chip_rect = chip_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 50, self.player_y[i] + self.player_container_height - 30))
+            chip_title_rect = chip_title_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 50, self.player_y[i] + self.player_container_height - 50))
+            
             self.screen.blit(self.container_image, (self.player_x[i], self.player_y[i]))
-            self.screen.blit(text, text_rect)
+            self.screen.blit(name_text, name_rect)
+            self.screen.blit(chip_text, chip_rect)
+            self.screen.blit(chip_title_text, chip_title_rect)
 
     def draw_players_cards(self):
         self.card_offset = 25
@@ -149,48 +153,54 @@ class Game:
                 y = self.player_y[i] + 50
                 self.screen.blit(card_image, (x - (self.card_offset / 2), y))
 
-            font = pygame.font.Font(None, 22)
+            font = pygame.font.Font(None, 20)
             score_text = f"{float(player.hand_strength):.3f}"
             hand_text = f"{player.hand_description}"
-            chip_text = f"{player.chipcount}"
+            
             score_surface = font.render(score_text, True, (255, 255, 255))
             hand_surface = font.render(hand_text, True, (255, 255, 255))
-            chip_surface = font.render(chip_text, True, (255, 255, 255))
-            chip_title = font.render("Total Chips", True, (255, 255, 255))
+
             score_rect = score_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 50, self.player_y[i] + self.player_container_height - 30))
             hand_rect = hand_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 50, self.player_y[i] + self.player_container_height - 50))
-            chip_rect = chip_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 50, self.player_y[i] + self.player_container_height - 30))
-            chip_title_rect = chip_title.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 50, self.player_y[i] + self.player_container_height - 50))
+
             self.screen.blit(score_surface, score_rect)
             self.screen.blit(hand_surface, hand_rect)
-            self.screen.blit(chip_surface, chip_rect)
-            self.screen.blit(chip_title, chip_title_rect)
 
     def draw_community_container(self):
+
         self.community_container_width = 640
-        self.community_container_height = 150
+        self.community_container_height = 180
         self.community_container_x = self.width // 2 - self.community_container_width // 2
-        self.community_container_y = self.height // 4 - self.community_container_height // 2
-        community_container_rect = pygame.Rect(self.community_container_x, self.community_container_y, self.community_container_width, self.community_container_height)
-        pygame.draw.rect(self.screen, (0, 255, 0), community_container_rect, 2)
+        self.community_container_y = self.height // 4 - self.community_container_height // 2.5
 
-    def draw_community_cards(self):
+        self.flop_x = self.community_container_x + (self.community_container_width // 50)
 
-        if not self.cards_dealt:
-            return
-        
-        flop_x = self.community_container_x + (self.community_container_width // 50)
+        #community_container_rect = pygame.Rect(self.community_container_x, self.community_container_y, self.community_container_width, self.community_container_height)
+        #pygame.draw.rect(self.screen, (0, 255, 0), community_container_rect, 2)
+
+        font = pygame.font.Font(None, 40)
+        pot = f"Pot: {int(self.game.pot)}"
+        pot_surface = font.render(pot, True, (255, 255, 255))
+        pot_rect = pot_surface.get_rect(center=(self.community_container_x + self.community_container_width // 2, self.community_container_y + self.community_container_height + 130))
+        self.screen.blit(pot_surface, pot_rect)
+
+    def draw_flop_cards(self):
+
         for card in self.flop_cards:
-            self.draw_card(card, flop_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
-            flop_x += (self.community_container_width // 5)
+            self.draw_card(card, self.flop_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
+            self.flop_x += (self.community_container_width // 5)
 
-        turn_x = flop_x
+    def draw_turn_cards(self):
+
+        self.turn_x = self.flop_x
         if self.turn_card is not None:
-            self.draw_card(self.game.community_cards.turncard, turn_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
+            self.draw_card(self.game.community_cards.turncard, self.turn_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
 
-        river_x = turn_x + (self.community_container_width // 5)
+    def draw_river_cards(self):
+
+        self.river_x = self.turn_x + (self.community_container_width // 5)
         if self.river_card is not None:
-            self.draw_card(self.game.community_cards.rivercard, river_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
+            self.draw_card(self.game.community_cards.rivercard, self.river_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
 
     def draw_card(self, card, x, y, width, height):
         rank, suit = change_card_str(card)
@@ -209,43 +219,78 @@ class Game:
         self.cards_drawn = True
 
     def play_round(self):
-        self.game.initialize_gamestate()
+        if self.current_round_state == 0:
+            # Start Round logic
+            self.game.deal_hole_cards()
 
-        self.game.deck.shuffle()
+            for player in self.game.players:
+                if player.game_in_play:
+                    hand_evaluation(player, player.hand, [])
 
-        self.game.deal_hole_cards()
-        for i in range(len(self.game.players)):
-            print(self.game.players[i].hand)
-            print(self.game.players[i].chipcount)
-        self.game.players_dealt = True
-        self.draw_players_cards()
+            self.draw_players_cards()
+            pygame.display.flip()
 
-        self.game.pre_flop()
+            self.game.pre_flop()
 
-        self.game.deck.deal_card()  # burn card
-        self.game.community_cards.insert_flop([self.game.deck.deal_card() for _ in range(3)])
-        self.flop_cards = self.game.community_cards.reveal_flop()
-        self.game.flop_dealt = True
+            self.current_round_state += 1
+            self.deal_button.set_text('Deal Flop')
 
+        elif self.current_round_state == 1:
+            # Deal Flop logic
+            self.game.flop_dealt, self.flop_cards = self.game.flop()
 
-        self.game.deck.deal_card()  # burn card
-        self.game.community_cards.insert_turn(self.game.deck.deal_card())
-        self.turn_card = self.game.community_cards.reveal_turn()
-        self.game.turn_dealt = True
+            for player in self.game.players:
+                if player.game_in_play:
+                    hand_evaluation(player, player.hand, self.flop_cards)
 
-        self.game.deck.deal_card()  # burn card
-        self.game.community_cards.insert_river(self.game.deck.deal_card())
-        self.river_card = self.game.community_cards.reveal_river()
-        self.game.river_dealt = True
+            self.draw_flop_cards()
+            self.manager.draw_ui(self.screen)
+            pygame.display.flip()
+            self.game.pre_turn()
 
-        self.cards_dealt = True
+            self.current_round_state += 1
+            self.deal_button.set_text('Deal Turn')
 
-        community_cards = self.flop_cards + [self.turn_card] + [self.river_card]
+        elif self.current_round_state == 2:
+            # Deal Turn logic
+            self.game.turn_dealt, self.turn_card = self.game.turn()
 
-        for player in self.game.players:
-            hole_cards = player.hand
+            for player in self.game.players:
+                if player.game_in_play:
+                    hand_evaluation(player, player.hand, self.flop_cards + [self.turn_card])
 
-            x = hand_evaluation(player, hole_cards, community_cards)
-            print(x)
+            self.draw_turn_cards()
+            pygame.display.flip()
+            self.game.pre_river()
+
+            self.current_round_state += 1
+            self.deal_button.set_text('Deal River')
+
+        elif self.current_round_state == 3:
+            # Deal River logic
+            self.game.river_dealt, self.river_card = self.game.river()
+
+            for player in self.game.players:
+                if player.game_in_play:
+                    hand_evaluation(player, player.hand, self.flop_cards + [self.turn_card] + [self.river_card])
+
+            self.draw_river_cards()
+            pygame.display.flip()
+            self.game.showdown()
+
+            self.current_round_state += 1
+            self.deal_button.set_text('End Round')
+
+        elif self.current_round_state == 4:
+            # End Round logic
+
+            self.game.end_round()
+            self.game.new_round()
+
+            self.current_round_state = 0
+            self.deal_button.set_text('Start Round')
+
+        
+
     
                     

@@ -2,6 +2,7 @@
 
 from pokereval.card import Card
 
+import game.game_logic as gl
 import game.config as cg
 
 class Player:
@@ -15,17 +16,29 @@ class Player:
 
     def __init__(self, name: str):
         self.name = name
+        self.hole_cards = []
         self.hand = []
         self.hand_strength = 0.0
         self.hand_description = ""
         self.chipcount = cg.chipcount
-        self.in_play = True
 
-    def in_play(self, in_play: bool):
-        if in_play == True:
-            self.in_play = True
-        else:
-            self.in_play = False
+        self.bet = 0
+        self.folded = False
+        self.all_in = False
+        self.round_played = False
+
+        self.game_in_play = True
+
+    def reset_betting(self):
+        self.bet = 0
+        self.round_played = False
+
+    def reset_round(self):
+        self.reset_betting()
+        self.reset_hand()
+        self.folded = False
+        self.all_in = False
+        self.round_played = False
 
     def receive_card(self, card: Card):
         ''' 
@@ -47,27 +60,16 @@ class Player:
         ''' 
         Resets the hand list
         '''
-
         self.hand = []
+        self.hand_strength = 0.0
+        self.hand_description = ""
 
-    def set_hand_info(self, strength, description):
+    def set_hand_info(self, hand_strength, hand_description):
         '''
-        Contains hand strength score and description
+        Sets the hand strength and description
         '''
-        self.hand_strength = strength
-        self.hand_description = description
-
-    def chip_count(self):
-        '''
-        Returns the number of chips the player has
-        '''
-        return self.chipcount
-
-    def add_chip(self, chip):
-        self.chipcount += chip
-
-    def remove_chip(self, chip):
-        self.chipcount -= chip
+        self.hand_strength = hand_strength
+        self.hand_description = hand_description
 
     def __str__ (self):
         return f"{self.name}"

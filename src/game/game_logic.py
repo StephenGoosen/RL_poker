@@ -208,16 +208,16 @@ def compare_scores(score_dict):
 
 def hand_evaluation(player, hole_cards, community_cards):
     # Use HandEvaluator to get the hand score
-    score = HandEvaluator.evaluate_hand(hole_cards, community_cards)
+    hand_strength = HandEvaluator.evaluate_hand(hole_cards, community_cards)
 
     # Use Hand to get the hand description
-    hand_results = Hand(hole_cards, community_cards).determine_hand()
+    hand_description = Hand(hole_cards, community_cards).determine_hand()
 
     # Set hand information for the player
-    player.set_hand_info(score, hand_results['hand_type'])
+    player.set_hand_info(hand_strength, hand_description['hand_type'])
 
     # Return the score and hand results
-    return score, hand_results
+    return hand_strength, hand_description
 
 class GameLogic:
     def __init__(self):
@@ -225,6 +225,7 @@ class GameLogic:
         self.deck.shuffle()
 
         self.pot = 0
+        self.current_bet = 0
         self.pre_flop_pot = np.zeros(len(cg.agents))
         self.pre_turn_pot = np.zeros(len(cg.agents))
         self.pre_river_pot = np.zeros(len(cg.agents))
@@ -246,9 +247,6 @@ class GameLogic:
 
         self.community_cards = tb.Community_Cards()
 
-        for player in self.players:
-            print(f"{player.name} has {player.chipcount} chips")
-
         self.players_dealt = False
         self.flop_dealt = False
         self.turn_dealt = False
@@ -268,39 +266,6 @@ class GameLogic:
         # Rotate active player index
         self.active_player_index = (self.active_player_index + 1) % len(self.players)
 
-    def get_active_player(self):
-        return self.players[self.active_player_index]
-    
-    def get_dealer(self):
-        return self.players[self.dealer_index]
-
-    def get_small_blind(self):
-        return self.players[self.small_blind_index]
-
-    def get_big_blind(self):
-        return self.players[self.big_blind_index]
-
-    def initialize_gamestate(self):
-        '''        
-        Determine who is small blind and big blind
-        Set dealer
-        Rotate
-        Set active player
-        '''
-
-        # Determine small and big blind index
-        dealer_index = 0
-        small_blind_index = (dealer_index + 1) % len(self.players)
-        big_blind_index = (small_blind_index) + 1 % len(self.players)
-
-        # Remove blind values from players.chipset
-        #self.players[small_blind_index].chipset.remove_chip('white')
-        #self.players[big_blind_index].chipset.remove_chip('red')
-
-        # Set active player
-        active_player_index = (dealer_index + 1) % len(self.players)
-        #self.players[active_player_index].set_active()
-
     def new_round(self):
         # Resets the game state for a new round
         # Resets Deck
@@ -309,48 +274,138 @@ class GameLogic:
         # Sets active player
         self.deck = Deck()
         self.deck.shuffle()
-        self.pot = 0
         self.rotate_positions()
-        self.players_in_play = np.ones(len(self.players))
-        self.active_player_index = (self.dealer_index + 1) % len(self.players)
 
     def deal_hole_cards(self):
         for player in self.players:
-            player.hand.append(self.deck.deal_card())
+            if player.game_in_play:
+                player.hand.append(self.deck.deal_card())
 
         for player in self.players:
-            player.hand.append(self.deck.deal_card())
-    
+            if player.game_in_play:
+                player.hand.append(self.deck.deal_card())
+        
+        self.players_dealt = True
+
+    def highest_bet(self):
+        highest_bet = 0
+        for player in self.players:
+            if player.bet > highest_bet:
+                highest_bet = player.bet
+        return highest_bet
+
     def betting_round(self):
-        # Start from active player in players_in_play vector
-        self.current_bet = 0
-        active_player = self.active_player_index
-        print(self.active_player_index)
-        num_players = len(self.players)
-        print(f"Number of players: {num_players}")
+        '''
+        Betting round function
+        '''
+        # Get the players in play and in game
+        active_player_index = self.active_player_index
+        highest_bet = 0
+        self.betting_round_pot = 0
+        round_finished = False
 
-        for _ in range(num_players):
-            if active_player < num_players:
-                current_player = self.players[active_player]
-                bet_amount = self.request_bet(current_player)
-                current_player.chipcount -= bet_amount
-                self.current_bet += bet_amount
-                active_player = (active_player + 1) % num_players
-                print(f"Current bet: {self.current_bet}, Active player: {active_player}")
-            else:
-                print("Warning: active_player index exceeds the number of players.")
-                break
+        while not round_finished:
+            current_player = self.players[active_player_index]
+            
+            if current_player.game_in_play == False:
+                f"{current_player.name} is out of the game."
 
-        self.pot += self.current_bet
+            elif current_player.all_in:
+                f"{current_player.name} is all-in."
+
+            elif current_player.folded:
+                f"{current_player.name} has folded."
+
+            elif current_player.round_played == False or current_player.bet < self.highest_bet():
+
+                # Let the player choose their action
+                action = self.get_player_action(current_player, highest_bet)
+
+                if action == '0':
+                    self.check_call(current_player, highest_bet)
+                elif action == '1':
+                    self.bet_raise(current_player, highest_bet)
+                elif action == '2':
+                    self.fold(current_player)
+                else:
+                    print("Invalid action. Please choose from 1(check_call), 2(bet_raise), or 3(fold).")
+                    continue
+
+                current_player.round_played = True
+                highest_bet = self.highest_bet()
+
+            active_player_index = (active_player_index + 1) % len(self.players)
+
+            # Check if all active players have matched the highest bet or gone all-in or folded
+            round_finished = all(
+                not player.game_in_play or player.all_in or player.folded or (
+                    (player.bet == highest_bet and player.round_played)
+                )
+                for player in self.players
+            )
+
+        self.pot += self.betting_round_pot  # Accumulate all bets made by players
+
+        # Reset betting variables for all players still in the game
+        for player in self.players:
+            player.reset_betting()
+
+        print("Betting round finished.")
 
 
-    def check(self, player):
-        pass
+    def get_player_action(self, player, highest_bet):
+        if highest_bet == 0:
+            options = "0 1 2"
+        else:
+            options = "0 1 2"
 
-    def call(self, player):
-        bet_amount = self.current_bet - player.chipcount
-        player.remove_chip(bet_amount)
-        self.pot += bet_amount
+        try:
+            action = input(f"{player.name}, choose your action (Check(0), Bet/Raise(1), Fold(2)): ")
+        except ValueError:
+            print("Invalid input. Please enter a valid action.")
+            return self.get_player_action(player, highest_bet)
+
+        if action not in options.split():
+            print("Invalid action. Please choose a valid action.")
+            return self.get_player_action(player, highest_bet)
+
+        return action
+
+    def check_call(self, player, highest_bet):
+        if player.chipcount >= highest_bet:
+            bet_amount = (highest_bet - player.bet)
+            print(f"{player.name} checks/calls with {bet_amount} chips.")
+        else:
+            bet_amount = player.chipcount
+            print(f"{player.name} is all-in with {bet_amount} chips.")
+
+        player.bet += bet_amount
+        player.chipcount -= bet_amount
+        self.betting_round_pot += bet_amount
+
+    def bet_raise(self, player, highest_bet):
+        try:
+            bet_amount = int(input(f"{player.name}, enter your bet amount (current highest bet: {highest_bet}): "))
+        except ValueError:
+            print("Invalid input. Please enter a valid bet amount.")
+            return self.bet_raise(player, highest_bet)
+
+        # Validate the bet amount
+        if (bet_amount + player.bet) < highest_bet or bet_amount > player.chipcount:
+            print("Invalid bet amount. Please enter a valid amount within the allowed range.")
+            return self.bet_raise(player, highest_bet)
+
+        # Process the bet raise
+        player.bet += bet_amount
+        player.chipcount -= bet_amount
+        self.betting_round_pot += bet_amount
+
+        return bet_amount
+    
+    def fold(self, player):
+        print(f"{player.name} folds.")
+        player.folded = True
+
 
     def request_bet(self, player):
         try:
@@ -365,12 +420,6 @@ class GameLogic:
             return self.request_bet(player)
 
         return bet_amount
-
-    def get_active_player(self):
-        # Return the current active player
-        for player in self.players:
-            if player.is_active():
-                return player
             
     def pre_flop(self):
         self.betting_round()
@@ -379,33 +428,68 @@ class GameLogic:
         self.deck.deal_card()  # burn card
         self.flop_cards = [self.deck.deal_card() for _ in range(3)]
         self.community_cards.insert_flop(self.flop_cards)
-        return self.flop_dealt == True
+        return True, self.flop_cards
 
     def pre_turn(self):
-        #pre-turn betting
+        self.betting_round()
         pass
 
     def turn(self):
         self.deck.deal_card()  # burn card
         self.turn_card = self.deck.deal_card()
         self.community_cards.insert_turn(self.turn_card)
-        return self.turn_dealt == True
-
+        return True, self.turn_card
 
     def pre_river(self):
-        #pre-river betting
+        self.betting_round()
         pass
 
     def river(self):
         self.deck.deal_card()  # burn card
         self.river_card = self.deck.deal_card()
         self.community_cards.insert_river(self.river_card)
-        return self.river_dealt == True
+        return True, self.river_card
 
-    def showdown():
+    def showdown(self):
+        self.betting_round()
         pass
 
+    def winner_winner(self):
+        # Get a list of players eligible for winning
+        players_eligible = []
+        for player in self.players:
+            if player.folded == False:
+                players_eligible.append(player)
+
+        # Sort the players by hand strength)
+        sorted_players = sorted(players_eligible, key=lambda player: player.hand_strength, reverse=True)
+
+        # Find the winner(s)
+        winning_players = [sorted_players[0]]
+        max_hand_strength = sorted_players[0].hand_strength
+
+        for player in sorted_players[1:]:
+            if player.hand_strength == max_hand_strength:
+                winning_players.append(player)
+            else:
+                break
+
+        # Handle tie and split the pot evenly
+        if len(winning_players) > 1:
+            # Split the pot evenly among tied players
+            share_of_pot = self.pot / len(winning_players)
+            for winner in winning_players:
+                winner.chipcount += share_of_pot
+        else:
+            # Only one winner, give them the entire pot
+            winning_players[0].chipcount += self.pot
+
     def end_round(self):
+        self.winner_winner()
+        for player in self.players:
+            if player.chipcount == 0:
+                player.game_in_play = False
+
         self.community_cards.reset()
         self.pot = 0
         self.current_bet = 0
@@ -413,9 +497,9 @@ class GameLogic:
         self.flop_dealt = False
         self.turn_dealt = False
         self.river_dealt = False
-        self.deck = Deck()
-        self.deck.shuffle()
-        pass
+        self.cards_dealt = False
+        for player in self.players:
+                player.reset_round()
 
     def end_game():
         pass
