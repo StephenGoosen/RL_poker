@@ -1,9 +1,14 @@
 # players.py
 
+import re
+
 from pokereval.card import Card
 
 import game.game_logic as gl
 import game.config as cg
+import game.cards as gc
+
+# Player class
 
 class Player:
     ''' 
@@ -49,12 +54,14 @@ class Player:
 
     def show_hand(self):
         ''' 
-        Prints hand out
+        Prints numerical representation of the hand out as [rank, suit]
         '''
 
         print(f"{self.name}'s hand:")
+        num_hand = []
         for card in self.hand:
-            print(card)
+            num_hand.append(gc.card_to_num[card])
+        return num_hand
 
     def reset_hand(self):
         ''' 

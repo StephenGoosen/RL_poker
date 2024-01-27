@@ -7,41 +7,12 @@ import itertools
 from pokereval.card import Card
 from pokereval.hand_evaluator import HandEvaluator
 
-from game.cards import change_card_str, Deck
+from game.cards import change_card_str, Deck, change_card_num
 import game.config as cg
 import game.player as gp
 import game.table as tb
 
 agents = cg.agents
-
-#Chipset Temporarily Removed
-'''
-
-def bet_to_chips(bet: int):
-    chip_values = cg.chip_values
-
-    number_of_chips = {
-        "white": 0,
-        "red": 0,
-        "green": 0,
-        "blue": 0,
-        "black": 0
-    }
-
-    for chip_color in ["black", "blue", "green", "red", "white"]:
-        chip_value = chip_values[chip_color]
-        
-        chips_needed = bet // chip_value
-        number_of_chips[chip_color] = chips_needed
-        bet -= chip_value * chips_needed
-
-    return number_of_chips
-
-def remove_chips_from_player(player_chips, chips_to_remove):
-    for chip_color, count in chips_to_remove.items():
-        player_chips[chip_color] -= count
-        player_chips[chip_color] = max(0, player_chips[chip_color])
-'''
 
 class Hand:
     def __init__(self, hole_cards, community_cards):
@@ -226,10 +197,7 @@ class GameLogic:
 
         self.pot = 0
         self.current_bet = 0
-        self.pre_flop_pot = np.zeros(len(cg.agents))
-        self.pre_turn_pot = np.zeros(len(cg.agents))
-        self.pre_river_pot = np.zeros(len(cg.agents))
-        self.showdown_pot = np.zeros(len(cg.agents))
+        self.betting_round_pot = 0
 
         self.small_blind = cg.small_blind
         self.big_blind = cg.big_blind
@@ -252,6 +220,15 @@ class GameLogic:
         self.turn_dealt = False
         self.river_dealt = False
         self.game_over = False
+
+        self.game_states = {
+            0: "Pre-Flop",
+            1: "Flop",
+            2: "Turn",
+            3: "River"
+        }
+
+        self.game_state = self.game_states[0]
 
     def rotate_positions(self):
         # Rotate dealer index
@@ -300,21 +277,20 @@ class GameLogic:
         '''
         # Get the players in play and in game
         active_player_index = self.active_player_index
-        highest_bet = 0
-        self.betting_round_pot = 0
+        highest_bet = 2
         round_finished = False
 
         while not round_finished:
             current_player = self.players[active_player_index]
             
             if current_player.game_in_play == False:
-                f"{current_player.name} is out of the game."
+                print(f"{current_player.name} is out of the game.")
 
             elif current_player.all_in:
-                f"{current_player.name} is all-in."
+                print(f"{current_player.name} is all-in.")
 
             elif current_player.folded:
-                f"{current_player.name} has folded."
+                print(f"{current_player.name} has folded.")
 
             elif current_player.round_played == False or current_player.bet < self.highest_bet():
 
@@ -344,7 +320,8 @@ class GameLogic:
                 for player in self.players
             )
 
-        self.pot += self.betting_round_pot  # Accumulate all bets made by players
+        self.pot += self.betting_round_pot
+        self.betting_round_pot = 0
 
         # Reset betting variables for all players still in the game
         for player in self.players:
@@ -381,6 +358,10 @@ class GameLogic:
 
         player.bet += bet_amount
         player.chipcount -= bet_amount
+
+        if player.chipcount == 0:
+            player.all_in = True
+
         self.betting_round_pot += bet_amount
 
     def bet_raise(self, player, highest_bet):
@@ -398,6 +379,10 @@ class GameLogic:
         # Process the bet raise
         player.bet += bet_amount
         player.chipcount -= bet_amount
+        
+        if player.chipcount == 0:
+            player.all_in = True
+        
         self.betting_round_pot += bet_amount
 
         return bet_amount
@@ -420,8 +405,38 @@ class GameLogic:
             return self.request_bet(player)
 
         return bet_amount
-            
+    
+    def update_active_players(self):
+        # Update the active player indices to skip players who are out of the game
+        active_player_indices = [i for i, player in enumerate(self.players) if player.game_in_play]
+        return active_player_indices
+
+    def blinds(self):
+        # Update the active player indices
+        active_player_indices = self.update_active_players()
+
+        # Small blind
+        for i in active_player_indices:
+            player = self.players[i]
+            if i == active_player_indices[0]:
+                self.pot += cg.small_blind
+                player.chipcount -= cg.small_blind
+                player.bet += cg.small_blind
+                print(f"{player.name} posts the small blind of {cg.small_blind} chips.")
+
+        # Big blind
+        for i in active_player_indices:
+            player = self.players[i]
+            if i == active_player_indices[1]:
+                self.pot += cg.big_blind
+                player.chipcount -= cg.big_blind
+                player.bet += cg.big_blind
+                print(f"{player.name} posts the big blind of {cg.big_blind} chips.")
+
+
     def pre_flop(self):
+        self.update_active_players()
+        self.blinds()
         self.betting_round()
 
     def flop(self):

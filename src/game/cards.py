@@ -23,7 +23,7 @@ class Deck:
         for suit in suits:
             for rank in ranks:
                 _card = Card(rank, suit)
-                self.cards.append(_card)
+                self.cards.append(_card)   
 
     def shuffle(self):
         ''' 
@@ -54,3 +54,18 @@ def change_card_str(card):
     suit = suit_mapping.get(suit_match, suit_match)
 
     return rank, suit
+
+def change_card_num(card):
+    '''
+    Converts Card object numerical representation for machine learning.
+    '''
+    rank_mapping = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
+    suit_mapping = {'s': 1, 'h': 2, 'd': 3, 'c': 4}
+
+    rank_match = re.findall(r'\((.*?)\)', str(card))[0][0]
+    suit_match = re.findall(r'\((.*?)\)', str(card))[0][1]
+
+    rank = rank_mapping.get(rank_match, rank_match)
+    suit = suit_mapping.get(suit_match, suit_match)
+
+    return [rank, suit]
