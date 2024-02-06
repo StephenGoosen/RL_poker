@@ -1,4 +1,4 @@
-from gui.gui import Game
+from gui.gui_2 import Game
 
 
 

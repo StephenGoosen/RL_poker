@@ -8,4 +8,4 @@ big_blind = 2
 chipcount = 4500
 
 # Agent settings
-agents = ["Agent 1", "Agent 2", "Agent 3", "Agent 4"]
+agents = ["Agent 1", "Agent 2"]

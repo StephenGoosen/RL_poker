@@ -122,9 +122,12 @@ class Hand:
 
         if len(pairs) >= 2:
             ordered_pairs = sorted(pairs, reverse=True)
-            kicker = next(card.rank for card in self.cards if card.rank not in ordered_pairs)
+            try:
+                kicker = next(card.rank for card in self.cards if card.rank not in ordered_pairs)
+            except StopIteration:
+                kicker = None
 
-            return {"hand_type": "Two Pair", "cards": ordered_pairs + [kicker]}
+            return {"hand_type": "Two Pair", "cards": ordered_pairs + [kicker] if kicker is not None else ordered_pairs}
 
         return None
 
@@ -271,13 +274,18 @@ class GameLogic:
                 highest_bet = player.bet
         return highest_bet
 
-    def betting_round(self):
+    def betting_round(self, pre_flop=False):
         '''
         Betting round function
         '''
         # Get the players in play and in game
         active_player_index = self.active_player_index
-        highest_bet = 2
+
+        if pre_flop:
+            highest_bet = 2
+        else:
+            highest_bet = 0
+
         round_finished = False
 
         while not round_finished:
@@ -349,6 +357,7 @@ class GameLogic:
         return action
 
     def check_call(self, player, highest_bet):
+        print(f"Highest bet: {highest_bet}")
         if player.chipcount >= highest_bet:
             bet_amount = (highest_bet - player.bet)
             print(f"{player.name} checks/calls with {bet_amount} chips.")
@@ -433,8 +442,7 @@ class GameLogic:
                 player.bet += cg.big_blind
                 print(f"{player.name} posts the big blind of {cg.big_blind} chips.")
 
-
-    def pre_flop(self):
+    def pre_flop(self, pre_flop=True):
         self.update_active_players()
         self.blinds()
         self.betting_round()
@@ -445,7 +453,7 @@ class GameLogic:
         self.community_cards.insert_flop(self.flop_cards)
         return True, self.flop_cards
 
-    def pre_turn(self):
+    def pre_turn(self, pre_flop=False):
         self.betting_round()
         pass
 
@@ -455,7 +463,7 @@ class GameLogic:
         self.community_cards.insert_turn(self.turn_card)
         return True, self.turn_card
 
-    def pre_river(self):
+    def pre_river(self, pre_flop=False):
         self.betting_round()
         pass
 
@@ -465,7 +473,7 @@ class GameLogic:
         self.community_cards.insert_river(self.river_card)
         return True, self.river_card
 
-    def showdown(self):
+    def showdown(self, pre_flop=False):
         self.betting_round()
         pass
 
@@ -500,10 +508,21 @@ class GameLogic:
             winning_players[0].chipcount += self.pot
 
     def end_round(self):
+
         self.winner_winner()
+        # Check if any players are out of the game
+        still_in_game = 0
+        self.winner = []
         for player in self.players:
             if player.chipcount == 0:
                 player.game_in_play = False
+            if player.game_in_play:
+                self.winner.append(player)
+                still_in_game += 1
+        print(still_in_game)
+        if still_in_game <= 1:
+            self.end_game()
+            pass
 
         self.community_cards.reset()
         self.pot = 0
@@ -516,5 +535,8 @@ class GameLogic:
         for player in self.players:
                 player.reset_round()
 
-    def end_game():
+    def end_game(self):
+        print("Game over!")
+        print(f"{self.winner[0].name} wins!")
+        self.__init__()
         pass

@@ -5,13 +5,10 @@ import pygame_gui
 
 import os
 import sys
-import re
 
-from game.game_logic import hand_evaluation, compare_scores, GameLogic
-from game.player import Player
-from game.cards import Deck, change_card_str
-import game.table as Tb
-import game.config as cg
+from game.game_logic import hand_evaluation, GameLogic
+from game.cards import change_card_str
+
 
 rank_mapping = {'2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14}
 suit_mapping = {'s': 'spades', 'h': 'hearts', 'd': 'diamonds', 'c': 'clubs'}
@@ -26,7 +23,18 @@ class Game:
         background_image = pygame.image.load(os.path.join("images", "background_2.png"))
         self.resized_image = pygame.transform.scale(background_image, (self.width, self.height))
         self.button_color = pygame.Color('#FFFFFF')
-        self.button_rect = pygame.Rect((self.width/2 - 75, self.height/2 - 25), (150, 50))
+        self.button_rect = pygame.Rect((self.width/2 - 75, self.height/2 + 50), (150, 50))
+
+        self.grid_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        self.draw_grid(self.grid_surface, cell_size=50, line_color=(255, 255, 255, 50))
+
+    def draw_grid(self, surface, cell_size, line_color):
+        for x in range(0, self.width, cell_size):
+            pygame.draw.line(surface, line_color, (x, 0), (x, self.height), 1)
+
+        for y in range(0, self.height, cell_size):
+            pygame.draw.line(surface, line_color, (0, y), (self.width, y), 1)
+
 
         self.card_images = self.load_card_images()
 
@@ -73,6 +81,7 @@ class Game:
                     self.play_round()
 
             self.screen.blit(self.resized_image, (0, 0))
+            #self.screen.blit(self.grid_surface, (0, 0))
 
             self.draw_players_container()
             self.draw_community_container()
@@ -102,38 +111,40 @@ class Game:
         sys.exit()
 
     def draw_players_container(self):
-        self.player_container_width = 244
-        self.player_container_height = 400
-        self.player_x, self.player_y = [40, 338, 698, 996], [230, 450, 450, 230]
-
-        container_image = pygame.image.load(os.path.join("images", "containers.png"))
-        self.container_image = pygame.transform.scale(container_image, 
-                                                      (self.player_container_width, self.player_container_height))
+        self.player_container_width = 250
+        self.player_container_height = 350
+        self.player_x, self.player_y = [50, 985], [250, 250]
 
         for i in range(len(self.game.players)):
-            player_container_rect = pygame.Rect(self.player_x[i], self.player_y[i], self.player_container_width, self.player_container_height)
 
             # Draw player's name and chipcount
-            font1 = pygame.font.Font(None, 30)
-            font2 = pygame.font.Font(None, 20)
+            font1 = pygame.font.Font(None, 32)
+            font2 = pygame.font.Font(None, 25)
 
             name_text = font1.render(self.game.players[i].name, True, (255, 255, 255))
+
             chip_text = font2.render(f"{self.game.players[i].chipcount}", True, (255, 255, 255))
             chip_title_text = font2.render("Total Chips", True, (255, 255, 255))
-            
-            name_rect = name_text.get_rect(center=(self.player_x[i]+self.player_container_width // 2, self.player_y[i] + 34))
-            chip_rect = chip_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 50, self.player_y[i] + self.player_container_height - 30))
-            chip_title_rect = chip_title_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 50, self.player_y[i] + self.player_container_height - 50))
-            
-            self.screen.blit(self.container_image, (self.player_x[i], self.player_y[i]))
+
+            name_rect = name_text.get_rect(center=(self.player_x[i]+self.player_container_width // 2, self.player_y[i] + 24))
+
+            if self.game.players[i] == self.game.players[0]:
+                chip_rect = chip_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 62, self.player_y[i] + self.player_container_height - 30))
+                chip_title_rect = chip_title_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 62, self.player_y[i] + self.player_container_height - 60))
+
+            else:
+                chip_rect = chip_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 62, self.player_y[i] + self.player_container_height - 30))
+                chip_title_rect = chip_title_text.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 62, self.player_y[i] + self.player_container_height - 60))
+
+            # Draw player's container
             self.screen.blit(name_text, name_rect)
             self.screen.blit(chip_text, chip_rect)
             self.screen.blit(chip_title_text, chip_title_rect)
 
     def draw_players_cards(self):
         self.card_offset = 25
-        self.card_width = 128*.7
-        self.card_height = 178*.7
+        self.card_width = 128
+        self.card_height = 178
 
         for i, player in enumerate(self.game.players):
             for j, card in enumerate(player.hand):
@@ -148,32 +159,40 @@ class Game:
                 except pygame.error:
                     print(f"Error: Image file not found for {key}")
                     continue
+                
+                if self.game.players[i] == self.game.players[0]:
+                    x = self.player_x[i] + (j * self.card_offset) + 122 - (self.card_width / 2) + 26
+                    y = self.player_y[i] + 63
+                    self.screen.blit(card_image, (x - (self.card_offset / 2), y))
+                else:
+                    x = self.player_x[i] + (j * self.card_offset) + 122 - (self.card_width / 2) - 21
+                    y = self.player_y[i] + 63
+                    self.screen.blit(card_image, (x - (self.card_offset / 2), y))
 
-                x = self.player_x[i] + (j * self.card_offset) + 122 - (self.card_width / 2)
-                y = self.player_y[i] + 50
-                self.screen.blit(card_image, (x - (self.card_offset / 2), y))
+            font = pygame.font.Font(None, 25)
+      
+            score_surface = font.render(f"{float(player.hand_strength):.3f}", True, (255, 255, 255))
+            hand_surface = font.render(f"{player.hand_description}", True, (255, 255, 255))
 
-            font = pygame.font.Font(None, 20)
-            score_text = f"{float(player.hand_strength):.3f}"
-            hand_text = f"{player.hand_description}"
+            if self.game.players[i] == self.game.players[0]:
+                hand_rect= hand_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 62, self.player_y[i] + self.player_container_height - 30))
+                score_rect = score_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) + 62, self.player_y[i] + self.player_container_height - 60))
             
-            score_surface = font.render(score_text, True, (255, 255, 255))
-            hand_surface = font.render(hand_text, True, (255, 255, 255))
-
-            score_rect = score_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 50, self.player_y[i] + self.player_container_height - 30))
-            hand_rect = hand_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 50, self.player_y[i] + self.player_container_height - 50))
-
+            else:
+                hand_rect= hand_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 62, self.player_y[i] + self.player_container_height - 30))
+                score_rect = score_surface.get_rect(center=(self.player_x[i] + (self.player_container_width // 2) - 62, self.player_y[i] + self.player_container_height - 60))
+                
             self.screen.blit(score_surface, score_rect)
             self.screen.blit(hand_surface, hand_rect)
 
     def draw_community_container(self):
 
-        self.community_container_width = 640
-        self.community_container_height = 180
-        self.community_container_x = self.width // 2 - self.community_container_width // 2
-        self.community_container_y = self.height // 4 - self.community_container_height // 2.5
+        self.community_container_width = 580
+        self.community_container_height = 200
+        self.community_container_x = 350
+        self.community_container_y = 150
 
-        self.flop_x = self.community_container_x + (self.community_container_width // 50)
+        self.flop_x = self.community_container_x + 24
 
         #community_container_rect = pygame.Rect(self.community_container_x, self.community_container_y, self.community_container_width, self.community_container_height)
         #pygame.draw.rect(self.screen, (0, 255, 0), community_container_rect, 2)
@@ -181,26 +200,21 @@ class Game:
         font = pygame.font.Font(None, 40)
         pot = f"Pot: {int(self.game.pot)}"
         pot_surface = font.render(pot, True, (255, 255, 255))
-        pot_rect = pot_surface.get_rect(center=(self.community_container_x + self.community_container_width // 2, self.community_container_y + self.community_container_height + 130))
+        pot_rect = pot_surface.get_rect(center=(self.community_container_x + self.community_container_width // 2, self.community_container_y + self.community_container_height + 218))
         self.screen.blit(pot_surface, pot_rect)
 
     def draw_flop_cards(self):
-
         for card in self.flop_cards:
-            self.draw_card(card, self.flop_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
-            self.flop_x += (self.community_container_width // 5)
+            self.draw_card(card, self.flop_x, self.community_container_y + 27, self.community_container_width, self.community_container_height)
+            self.flop_x += 108
 
     def draw_turn_cards(self):
-
         self.turn_x = self.flop_x
-        if self.turn_card is not None:
-            self.draw_card(self.game.community_cards.turncard, self.turn_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
+        self.draw_card(self.game.community_cards.turncard, self.turn_x, self.community_container_y + 27, self.community_container_width, self.community_container_height)
 
     def draw_river_cards(self):
-
-        self.river_x = self.turn_x + (self.community_container_width // 5)
-        if self.river_card is not None:
-            self.draw_card(self.game.community_cards.rivercard, self.river_x, self.community_container_y + 10, self.community_container_width, self.community_container_height)
+        self.river_x = self.turn_x + 108
+        self.draw_card(self.game.community_cards.rivercard, self.river_x, self.community_container_y + 27, self.community_container_width, self.community_container_height)
 
     def draw_card(self, card, x, y, width, height):
         rank, suit = change_card_str(card)
@@ -210,7 +224,7 @@ class Game:
 
         try:
             card_image = pygame.image.load(key)
-            card_image = pygame.transform.scale(card_image, (int(width / 6), int(height / 1.2)))
+            card_image = pygame.transform.scale(card_image, (100, 142))
         except pygame.error:
             print(f"Error: Image file not found for {key}")
             return
